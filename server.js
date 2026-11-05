@@ -1,0 +1,7 @@
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = __dirname, port = Number(process.env.PORT || 3000), dataFile = path.join(root, 'data.json'), defaultState = { items: [] };
+function readState(){try{return {...defaultState,...JSON.parse(fs.readFileSync(dataFile,'utf8'))}}catch{return {...defaultState}}}
+function send(res,status,body,type='application/json; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store'});res.end(typeof body==='string'?body:JSON.stringify(body))}
+http.createServer((req,res)=>{const url=new URL(req.url,`http://${req.headers.host}`);if(req.method==='GET'&&url.pathname==='/api/state')return send(res,200,readState());if(req.method==='PUT'&&url.pathname==='/api/state'){let raw='';req.on('data',c=>{raw+=c;if(raw.length>1_000_000)req.destroy()});return req.on('end',()=>{try{const state=JSON.parse(raw);if(!Array.isArray(state.items))throw Error();fs.writeFileSync(dataFile,JSON.stringify({items:state.items},null,2));send(res,200,{ok:true})}catch{send(res,400,{error:'Expected an items array.'})}})}if(req.method==='GET'&&(url.pathname==='/'||url.pathname==='/index.html'))return fs.readFile(path.join(root,'index.html'),(e,file)=>e?send(res,500,'Unable to load the app.','text/plain'):send(res,200,file.toString(),'text/html; charset=utf-8'));send(res,404,{error:'Not found'})}).listen(port,()=>console.log(`Pocket Ledger API running at http://localhost:${port}`));
